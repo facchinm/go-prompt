@@ -169,7 +169,7 @@ func (r *Render) renderCompletion(buf *Buffer, completions *CompletionManager) {
 }
 
 // Render renders to the console.
-func (r *Render) Render(buffer *Buffer, completion *CompletionManager) {
+func (r *Render) Render(buffer *Buffer, completion *CompletionManager, noInlineAutocompletion bool) {
 	// In situations where a pseudo tty is allocated (e.g. within a docker container),
 	// window size via TIOCGWINSZ is not immediately available and will result in 0,0 dimensions.
 	if r.col == 0 {
@@ -207,19 +207,38 @@ func (r *Render) Render(buffer *Buffer, completion *CompletionManager) {
 
 	r.renderCompletion(buffer, completion)
 	if suggest, ok := completion.GetSelectedSuggestion(); ok {
-		cursor = r.backward(cursor, runewidth.StringWidth(buffer.Document().GetWordBeforeCursorUntilSeparator(completion.wordSeparator)))
 
-		r.out.SetColor(r.previewSuggestionTextColor, r.previewSuggestionBGColor, false)
-		r.out.WriteStr(suggest.Text)
-		r.out.SetColor(DefaultColor, DefaultColor, false)
-		cursor += runewidth.StringWidth(suggest.Text)
+		if noInlineAutocompletion {
+			// BASH like
+			cursor = r.backward(cursor, runewidth.StringWidth(buffer.Document().GetWordBeforeCursorUntilSeparator(completion.wordSeparator)))
 
-		rest := buffer.Document().TextAfterCursor()
-		r.out.WriteStr(rest)
-		cursor += runewidth.StringWidth(rest)
-		r.lineWrap(cursor)
+			r.out.SetColor(r.previewSuggestionTextColor, r.previewSuggestionBGColor, false)
+			r.out.WriteStr(suggest.Text)
+			r.out.SetColor(DefaultColor, DefaultColor, false)
+			cursor += runewidth.StringWidth(suggest.Text)
 
-		cursor = r.backward(cursor, runewidth.StringWidth(rest))
+			rest := buffer.Document().TextAfterCursor()
+			r.out.WriteStr(rest)
+			cursor += runewidth.StringWidth(rest)
+			r.lineWrap(cursor)
+
+			cursor = r.backward(cursor, runewidth.StringWidth(rest))
+		} else {
+			// ZSH like
+			cursor = r.backward(cursor, runewidth.StringWidth(buffer.Document().GetWordBeforeCursorUntilSeparator(completion.wordSeparator)))
+
+			r.out.SetColor(r.previewSuggestionTextColor, r.previewSuggestionBGColor, false)
+			r.out.WriteStr(suggest.Text)
+			r.out.SetColor(DefaultColor, DefaultColor, false)
+			cursor += runewidth.StringWidth(suggest.Text)
+
+			rest := buffer.Document().TextAfterCursor()
+			r.out.WriteStr(rest)
+			cursor += runewidth.StringWidth(rest)
+			r.lineWrap(cursor)
+
+			cursor = r.backward(cursor, runewidth.StringWidth(rest))
+		}
 	}
 	r.previousCursor = cursor
 }

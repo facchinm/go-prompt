@@ -25,6 +25,7 @@ var (
 type Suggest struct {
 	Text        string
 	Description string
+	Continuous  bool
 }
 
 // CompletionManager manages which suggestion is now selected.

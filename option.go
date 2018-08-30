@@ -209,6 +209,14 @@ func OptionSwitchKeyBindMode(m KeyBindMode) Option {
 // Deprecated: Please use OptionSwitchKeyBindMode.
 var SwitchKeyBindMode = OptionSwitchKeyBindMode
 
+// OptionOnlyUpdateIfSingleChoice introduces a bash like behaviour (not zsh)
+func OptionOnlyUpdateIfSingleChoice(opt bool) Option {
+	return func(p *Prompt) error {
+		p.completeOnlyIfSure = opt
+		return nil
+	}
+}
+
 // OptionAddKeyBind to set a custom key bind.
 func OptionAddKeyBind(b ...KeyBind) Option {
 	return func(p *Prompt) error {

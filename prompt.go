@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -20,15 +21,16 @@ type Completer func(Document) []Suggest
 
 // Prompt is core struct of go-prompt.
 type Prompt struct {
-	in                ConsoleParser
-	buf               *Buffer
-	renderer          *Render
-	executor          Executor
-	history           *History
-	completion        *CompletionManager
-	keyBindings       []KeyBind
-	ASCIICodeBindings []ASCIICodeBind
-	keyBindMode       KeyBindMode
+	in                 ConsoleParser
+	buf                *Buffer
+	renderer           *Render
+	executor           Executor
+	history            *History
+	completion         *CompletionManager
+	keyBindings        []KeyBind
+	ASCIICodeBindings  []ASCIICodeBind
+	keyBindMode        KeyBindMode
+	completeOnlyIfSure bool
 }
 
 // Exec is the struct contains user input context.
@@ -51,7 +53,7 @@ func (p *Prompt) Run() {
 	p.setUp()
 	defer p.tearDown()
 
-	p.renderer.Render(p.buf, p.completion)
+	p.renderer.Render(p.buf, p.completion, p.completeOnlyIfSure)
 
 	bufCh := make(chan []byte, 128)
 	stopReadBufCh := make(chan struct{})
@@ -81,7 +83,7 @@ func (p *Prompt) Run() {
 				p.executor(e.input)
 
 				p.completion.Update(*p.buf.Document())
-				p.renderer.Render(p.buf, p.completion)
+				p.renderer.Render(p.buf, p.completion, p.completeOnlyIfSure)
 
 				// Set raw mode
 				p.in.Setup()
@@ -89,11 +91,11 @@ func (p *Prompt) Run() {
 				go p.handleSignals(exitCh, winSizeCh, stopHandleSignalCh)
 			} else {
 				p.completion.Update(*p.buf.Document())
-				p.renderer.Render(p.buf, p.completion)
+				p.renderer.Render(p.buf, p.completion, p.completeOnlyIfSure)
 			}
 		case w := <-winSizeCh:
 			p.renderer.UpdateWinSize(w)
-			p.renderer.Render(p.buf, p.completion)
+			p.renderer.Render(p.buf, p.completion, p.completeOnlyIfSure)
 		case code := <-exitCh:
 			p.renderer.BreakLine(p.buf)
 			p.tearDown()
@@ -154,13 +156,38 @@ func (p *Prompt) feed(b []byte) (shouldExit bool, exec *Exec) {
 	return
 }
 
-func (p *Prompt) complete() {
+func (p *Prompt) complete(alwaysComplete bool) {
 	if s, ok := p.completion.GetSelectedSuggestion(); ok {
 		w := p.buf.Document().GetWordBeforeCursorUntilSeparator(p.completion.wordSeparator)
-		if w != "" {
-			p.buf.DeleteBeforeCursor(len([]rune(w)))
+		if alwaysComplete {
+			if w != "" {
+				p.buf.DeleteBeforeCursor(len([]rune(w)))
+			}
+			p.buf.InsertText(s.Text, false, true)
+		} else {
+			// find maximum common sequence in completions
+			startString := p.buf.Document().GetWordBeforeCursorUntilSeparator(p.completion.wordSeparator)
+			// find shortest word
+			minLen := 255
+			for _, el := range p.completion.GetSuggestions() {
+				if len(el.Text) < minLen {
+					minLen = len(el.Text)
+				}
+			}
+			i := len(startString)
+			for i < minLen {
+				for _, el := range p.completion.GetSuggestions() {
+					if !strings.HasPrefix(el.Text, p.completion.GetSuggestions()[0].Text[:i]) {
+						break
+					}
+					i++
+				}
+			}
+			if i > len(startString) {
+				p.buf.DeleteBeforeCursor(len([]rune(w)))
+				p.buf.InsertText(p.completion.GetSuggestions()[0].Text[:i], false, true)
+			}
 		}
-		p.buf.InsertText(s.Text, false, true)
 	}
 	p.completion.Reset()
 }
@@ -174,8 +201,11 @@ func (p *Prompt) handleCompletionKeyBinding(key Key, completing bool) {
 	case Tab, ControlI:
 		p.completion.Next()
 		if len(p.completion.GetSuggestions()) == 1 {
-			p.complete()
-			p.buf.InsertText(" ", false, true)
+			compl, _ := p.completion.GetSelectedSuggestion()
+			p.complete(true)
+			if !compl.Continuous {
+				p.buf.InsertText(" ", false, true)
+			}
 		}
 	case Up:
 		if completing {
@@ -184,7 +214,7 @@ func (p *Prompt) handleCompletionKeyBinding(key Key, completing bool) {
 	case BackTab:
 		p.completion.Previous()
 	default:
-		p.complete()
+		p.complete(!p.completeOnlyIfSure)
 	}
 }
 
@@ -240,7 +270,7 @@ func (p *Prompt) Input() string {
 	p.setUp()
 	defer p.tearDown()
 
-	p.renderer.Render(p.buf, p.completion)
+	p.renderer.Render(p.buf, p.completion, p.completeOnlyIfSure)
 	bufCh := make(chan []byte, 128)
 	stopReadBufCh := make(chan struct{})
 	go p.readBuffer(bufCh, stopReadBufCh)
@@ -258,7 +288,7 @@ func (p *Prompt) Input() string {
 				return e.input
 			} else {
 				p.completion.Update(*p.buf.Document())
-				p.renderer.Render(p.buf, p.completion)
+				p.renderer.Render(p.buf, p.completion, p.completeOnlyIfSure)
 			}
 		default:
 			time.Sleep(10 * time.Millisecond)
