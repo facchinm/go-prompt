@@ -154,6 +154,17 @@ func (p *Prompt) feed(b []byte) (shouldExit bool, exec *Exec) {
 	return
 }
 
+func (p *Prompt) complete() {
+	if s, ok := p.completion.GetSelectedSuggestion(); ok {
+		w := p.buf.Document().GetWordBeforeCursorUntilSeparator(p.completion.wordSeparator)
+		if w != "" {
+			p.buf.DeleteBeforeCursor(len([]rune(w)))
+		}
+		p.buf.InsertText(s.Text, false, true)
+	}
+	p.completion.Reset()
+}
+
 func (p *Prompt) handleCompletionKeyBinding(key Key, completing bool) {
 	switch key {
 	case Down:
@@ -162,6 +173,10 @@ func (p *Prompt) handleCompletionKeyBinding(key Key, completing bool) {
 		}
 	case Tab, ControlI:
 		p.completion.Next()
+		if len(p.completion.GetSuggestions()) == 1 {
+			p.complete()
+			p.buf.InsertText(" ", false, true)
+		}
 	case Up:
 		if completing {
 			p.completion.Previous()
@@ -169,14 +184,7 @@ func (p *Prompt) handleCompletionKeyBinding(key Key, completing bool) {
 	case BackTab:
 		p.completion.Previous()
 	default:
-		if s, ok := p.completion.GetSelectedSuggestion(); ok {
-			w := p.buf.Document().GetWordBeforeCursorUntilSeparator(p.completion.wordSeparator)
-			if w != "" {
-				p.buf.DeleteBeforeCursor(len([]rune(w)))
-			}
-			p.buf.InsertText(s.Text, false, true)
-		}
-		p.completion.Reset()
+		p.complete()
 	}
 }
 
