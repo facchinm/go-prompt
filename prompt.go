@@ -156,38 +156,46 @@ func (p *Prompt) feed(b []byte) (shouldExit bool, exec *Exec) {
 	return
 }
 
-func (p *Prompt) complete(alwaysComplete bool) {
-	if s, ok := p.completion.GetSelectedSuggestion(); ok {
-		w := p.buf.Document().GetWordBeforeCursorUntilSeparator(p.completion.wordSeparator)
-		if alwaysComplete {
-			if w != "" {
-				p.buf.DeleteBeforeCursor(len([]rune(w)))
-			}
-			p.buf.InsertText(s.Text, false, true)
-		} else {
-			// find maximum common sequence in completions
-			startString := p.buf.Document().GetWordBeforeCursorUntilSeparator(p.completion.wordSeparator)
-			// find shortest word
-			minLen := 255
-			for _, el := range p.completion.GetSuggestions() {
-				if len(el.Text) < minLen {
-					minLen = len(el.Text)
-				}
-			}
-			i := len(startString)
-			for i < minLen {
-				for _, el := range p.completion.GetSuggestions() {
-					if !strings.HasPrefix(el.Text, p.completion.GetSuggestions()[0].Text[:i]) {
-						break
-					}
-					i++
-				}
-			}
-			if i > len(startString) {
-				p.buf.DeleteBeforeCursor(len([]rune(w)))
-				p.buf.InsertText(p.completion.GetSuggestions()[0].Text[:i], false, true)
+func (p *Prompt) completeUpToCommonChar(alwaysComplete bool) {
+	maxLen := 255
+	if len(p.completion.GetSuggestions()) == 0 {
+		return
+	}
+	for _, el := range p.completion.GetSuggestions() {
+		if len(el.Text) < maxLen {
+			maxLen = len(el.Text)
+		}
+	}
+	i := 0
+	for i < maxLen {
+		howMany := 0
+		for _, el := range p.completion.GetSuggestions() {
+			if strings.HasPrefix(el.Text, p.completion.GetSuggestions()[0].Text[:i]) {
+				howMany++
 			}
 		}
+		if howMany == len(p.completion.GetSuggestions()) {
+			i++
+		} else {
+			i--
+			break
+		}
+	}
+
+	w := p.buf.Document().GetWordBeforeCursorUntilSeparator(p.completion.wordSeparator)
+	if w != "" {
+		p.buf.DeleteBeforeCursor(len([]rune(w)))
+	}
+	p.buf.InsertText(p.completion.GetSuggestions()[0].Text[:i], false, true)
+}
+
+func (p *Prompt) complete(alwaysComplete bool) {
+	if s, ok := p.completion.GetSelectedSuggestion(); ok && alwaysComplete {
+		w := p.buf.Document().GetWordBeforeCursorUntilSeparator(p.completion.wordSeparator)
+		if w != "" {
+			p.buf.DeleteBeforeCursor(len([]rune(w)))
+		}
+		p.buf.InsertText(s.Text, false, true)
 	}
 	p.completion.Reset()
 }
@@ -199,13 +207,15 @@ func (p *Prompt) handleCompletionKeyBinding(key Key, completing bool) {
 			p.completion.Next()
 		}
 	case Tab, ControlI:
-		p.completion.Next()
 		if len(p.completion.GetSuggestions()) == 1 {
+			p.completion.Next()
 			compl, _ := p.completion.GetSelectedSuggestion()
 			p.complete(true)
 			if !compl.Continuous {
 				p.buf.InsertText(" ", false, true)
 			}
+		} else {
+			p.completeUpToCommonChar(true)
 		}
 	case Up:
 		if completing {
@@ -213,6 +223,8 @@ func (p *Prompt) handleCompletionKeyBinding(key Key, completing bool) {
 		}
 	case BackTab:
 		p.completion.Previous()
+	case Enter:
+		p.complete(true)
 	default:
 		p.complete(!p.completeOnlyIfSure)
 	}

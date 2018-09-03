@@ -210,19 +210,42 @@ func (r *Render) Render(buffer *Buffer, completion *CompletionManager, noInlineA
 
 		if noInlineAutocompletion {
 			// BASH like
-			cursor = r.backward(cursor, runewidth.StringWidth(buffer.Document().GetWordBeforeCursorUntilSeparator(completion.wordSeparator)))
 
-			r.out.SetColor(r.previewSuggestionTextColor, r.previewSuggestionBGColor, false)
-			r.out.WriteStr(suggest.Text)
-			r.out.SetColor(DefaultColor, DefaultColor, false)
-			cursor += runewidth.StringWidth(suggest.Text)
+			/*
+				cursor = r.backward(cursor, runewidth.StringWidth(buffer.Document().GetWordBeforeCursorUntilSeparator(completion.wordSeparator)))
 
-			rest := buffer.Document().TextAfterCursor()
-			r.out.WriteStr(rest)
-			cursor += runewidth.StringWidth(rest)
-			r.lineWrap(cursor)
+				// find maximum common sequence in completions
+				startString := buffer.Document().GetWordBeforeCursorUntilSeparator(completion.wordSeparator)
+				// find shortest word
+				maxLen := 255
+				for _, el := range completion.GetSuggestions() {
+					if len(el.Text) < maxLen {
+						maxLen = len(el.Text)
+					}
+				}
+				i := len(startString)
+				for i < maxLen {
+					for _, el := range completion.GetSuggestions() {
+						if !strings.HasPrefix(el.Text, completion.GetSuggestions()[0].Text[:i]) {
+							break
+						}
+						i++
+					}
+				}
 
-			cursor = r.backward(cursor, runewidth.StringWidth(rest))
+				suggest.Text = completion.GetSuggestions()[0].Text[:i]
+				//r.out.SetColor(r.previewSuggestionTextColor, r.previewSuggestionBGColor, false)
+				r.out.WriteStr(suggest.Text)
+				//r.out.SetColor(DefaultColor, DefaultColor, false)
+				cursor += runewidth.StringWidth(suggest.Text)
+
+				rest := buffer.Document().TextAfterCursor()
+				r.out.WriteStr(rest)
+				cursor += runewidth.StringWidth(rest)
+				r.lineWrap(cursor)
+
+				cursor = r.backward(cursor, runewidth.StringWidth(rest))
+			*/
 		} else {
 			// ZSH like
 			cursor = r.backward(cursor, runewidth.StringWidth(buffer.Document().GetWordBeforeCursorUntilSeparator(completion.wordSeparator)))
