@@ -23,9 +23,10 @@ var (
 
 // Suggest is printed when completing.
 type Suggest struct {
-	Text        string
-	Description string
-	Continuous  bool
+	Text                    string
+	Description             string
+	Continuous              bool
+	DisplayOnlyIfOnlyChoice bool
 }
 
 // CompletionManager manages which suggestion is now selected.
